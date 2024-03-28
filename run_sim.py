@@ -27,7 +27,7 @@
 ## parameters that you can set for a run of this simulator.
 ##
 ## This program defines a variable `TRACE` that you can use to conditionally
-## print messages from your EntityA and EntityB methods.  For example:
+## print messages from your SndTransport and RcvTransport methods.  For example:
 ##
 ##   if TRACE>0:
 ##       print('A very important event just happened!')
@@ -42,154 +42,13 @@ from enum import Enum, auto
 import random
 import sys
 import time
+import transport.init_sim as sim
 
-###############################################################################
-
-## ************************* BASIC DATA STRUCTURES ****************************
-##
-## STUDENTS: Do not modify these definitions.
-##
-## ****************************************************************************
-
-# A Msg is the data unit passed from layer 5 (done by the provided code) 
-# to layer 4 (your code).  It contains the data (bytes) to be delivered to layer 5
-# via your transport-level protocol entities.
-
-class Msg:
-    MSG_SIZE = 20
-
-    def __init__(self, data):
-        self.data = data                # type: bytes[MSG_SIZE]
-
-    def __str__(self):
-        return 'Msg(data=%s)' % (self.data)
-
-# A Pkt is the data unit passed from layer 4 (your code) to layer 3
-# (handled by the provided code). Note the pre-defined packet structure, 
-# which you must follow.
-
-class Pkt:
-    def __init__(self, seqnum:int, acknum:int, checksum:int, payload:bytes):
-        self.seqnum = seqnum            # type: integer
-        self.acknum = acknum            # type: integer
-        self.checksum = checksum        # type: integer
-        self.payload = payload          # type: bytes[Msg.MSG_SIZE]
-
-    def __str__(self):
-        return ('Pkt(seqnum=%s, acknum=%s, checksum=%s, payload=%s)'
-                % (self.seqnum, self.acknum, self.checksum, self.payload))
-
-###############################################################################
-
-## ***************** TASKS: COMPLETE THE CODE BELOW **************************
-##
-## The code blocks you have to implement are marked as TODO
-##
-## NOTICE: When you implement these methods, use instance variables only!
-## I.e., variables that you access through `self' like `self.x`.  Do NOT use
-## global variables (a.k.a. module-scoped variables) or class variables.
-##
-## The reason for this restriction is the autograder, which may run several
-## simulations within a single Python process.  For each simulation, the
-## autograder will create a new instance of EntityA and a new instance of
-## EntityB.  If you use global variables and/or class variables in your
-## implmentations of EntityA and EntityB, then your code may not work properly
-## when run by the autograder, and you may LOSE POINTS!
-## ****************************************************************************
-
-def calc_checksum(pkt:Pkt):
-    # TODO: Write a function that calculates a checksum given a packet.
-
-# EntityA: a sender transport layer (layer 4)
-class EntityA:
-    # The following method will be called once (only) before any other
-    # EntityA methods are called.  You can use it to do any initialization.
-    #
-    # seqnum_limit is "the number of distinct seqnum values that your protocol
-    # may use."  The seqnums and acknums in all layer3 Pkts must be between
-    # zero and seqnum_limit-1, inclusive.  E.g., if seqnum_limit is 16, then
-    # all seqnums must be in the range 0-15.
-    def __init__(self, seqnum_limit):
-        # TODO: initalize the sender's states
-        
-    # Called from layer 5, passed the data to be sent to other side.
-    # The argument `message` is a Msg containing the data to be sent.
-    def output(self, message):
-        # TODO: Create a packet from the message and pass it to layer 3. 
-        # This method also has to check # of in-flight packets and 
-        # start a timer after sending the packet.
-        # Refer to the assignment webpage for the core logic.
-
-    # Called from layer 3, when a packet arrives for layer 4 at EntityA.
-    # The argument `packet` is a Pkt containing the newly arrived packet.
-    def input(self, pkt):
-        # TODO: Check the packet if it is corrupted or unexpected
-        # and pass/discard the packet to layer 5 based on them.
-        # Refer to the assignment webpage for the core logic.
-            
-    # Called when the sender's timer goes off.
-    def timer_interrupt(self):
-        # TODO: handle retransmission when the timer expires
-        # Refer to the assignment webpage for the core logic.
-        pass
-
-# EntityB: a receiver transport layer (layer 4)
-class EntityB:
-    # The following method will be called once (only) before any other
-    # EntityB methods are called.  You can use it to do any initialization.
-    #
-    # See comment above `EntityA.__init__` for the meaning of seqnum_limit.
-    def __init__(self, seqnum_limit):
-        # TODO: initalize the receiver's states
-
-    # Called from layer 3, when a packet arrives for layer 4 at EntityB.
-    # The argument `packet` is a Pkt containing the newly arrived packet.
-    def input(self, packet):
-        # TODO: Check the packet if it is corrupted or unexpected
-        # and pass/discard the packet to layer 5 based on them.
-        # Plus, send an ACK message based on the validity of the packet.
-        # Refer to the assignment webpage for the core logic. 
-
-    # Ignore this method!
-    def timer_interrupt(self):
-        pass
-
-###############################################################################
-
-## ********************** STUDENT-CALLABLE FUNCTIONS **************************
-##
-## NOTICE: These are functions that should be called from your EntityA and
-## EntityB methods.
-##
-## The first argument to each of these student-callable functions is the object
-## that is invoking the function.  Within an EntityA or EntityB method, that
-## object is available as `self`.  For example, to start a timer in one of your
-## entity methods, you would do something like:
-##
-##   start_timer(self, 10.0) # Start a timer that will go off in 10 time units.
-##
-## Or to send a packet to layer3, you would do something like:
-##
-##   to_layer3(self, Pkt(...)) # Construct a Pkt and send it to layer3.
-##
-## ****************************************************************************
-
-def start_timer(calling_entity, increment):
-    the_sim.start_timer(calling_entity, increment)
-
-def stop_timer(calling_entity):
-    the_sim.stop_timer(calling_entity)
-
-def to_layer3(calling_entity, packet):
-    the_sim.to_layer3(calling_entity, packet)
-
-def to_layer5(calling_entity, message):
-    the_sim.to_layer5(calling_entity, message)
-
-def get_time(calling_entity):
-    return the_sim.get_time(calling_entity)
-
-###############################################################################
+## TODO: change this if you want to move onto the other part of the assignment
+## To test your part1 implementation, change it to:
+from transport.part1 import SndTransport, RcvTransport, Msg, Pkt
+## To test your part2 implementation, change it to:
+# from transport.part2 import SndTransport, RcvTransport, Msg, Pkt
 
 ## ****************************************************************************
 ## ***************** NETWORK SIMULATION CODE STARTS BELOW *********************
@@ -218,7 +77,7 @@ class Event:
     def __init__(self, ev_time, ev_type, ev_entity, packet=None):
         self.ev_time = ev_time      # float
         self.ev_type = ev_type      # EventType
-        self.ev_entity = ev_entity  # EntityA or EntityB
+        self.ev_entity = ev_entity  # SndTransport or RcvTransport
         self.packet = packet        # Pkt or None
 
 class Simulator:
@@ -253,8 +112,8 @@ class Simulator:
         self.to_layer5_callback_A = cbA
         self.to_layer5_callback_B = cbB
 
-        self.entity_A             = EntityA(self.seqnum_limit)
-        self.entity_B             = EntityB(self.seqnum_limit)
+        self.entity_A             = SndTransport(self.seqnum_limit)
+        self.entity_B             = RcvTransport(self.seqnum_limit)
         self.event_list           = []
 
     def get_stats(self):
@@ -305,10 +164,10 @@ class Simulator:
                 if self.trace>2:
                     print(f'          MAINLOOP: data given to student: {m}')
                 self.n_sim += 1
-                ev.ev_entity.output(Msg(m))
+                ev.ev_entity.send(Msg(m))
 
             elif ev.ev_type == EventType.FROM_LAYER3:
-                ev.ev_entity.input(deepcopy(ev.packet))
+                ev.ev_entity.recv(deepcopy(ev.packet))
 
             elif ev.ev_type == EventType.TIMER_INTERRUPT:
                 ev.ev_entity.timer_interrupt()
@@ -526,10 +385,8 @@ class Simulator:
 
 TRACE = 0
 
-the_sim = None
-
 def report_config():
-    stats = the_sim.get_stats()
+    stats = sim.the_sim.get_stats()
     print(f'''SIMULATION CONFIGURATION
 --------------------------------------
 (-n) # layer5 msgs to be provided:      {stats['n_sim_max']}
@@ -541,7 +398,7 @@ def report_config():
 --------------------------------------''')
 
 def report_results():
-    stats = the_sim.get_stats()
+    stats = sim.the_sim.get_stats()
     time = stats['time']
     if time > 0.0:
         tput = stats['n_to_layer5_B']/time
@@ -559,19 +416,18 @@ def report_results():
 # layer5 msgs delivered by A:     {stats['n_to_layer5_A']}
 # layer5 msgs delivered by B:     {stats['n_to_layer5_B']}
 # layer5 msgs by B/elapsed time:  {tput}
---------------------------------''')
+--------------------------------'''
+    )
 
 def main(options, cb_A=None, cb_B=None):
     global TRACE
     TRACE = options.trace
-
-    global the_sim
-    the_sim = Simulator(options, cb_A, cb_B)
+     
+    sim.init()
+    sim.the_sim = Simulator(options, cb_A, cb_B)
     report_config()
-    the_sim.run()
-
-#####
-
+    sim.the_sim.run()
+    
 if __name__ == '__main__':
     desc = 'Run a simulation of a reliable data transport protocol.'
     parser = argparse.ArgumentParser(description=desc)
