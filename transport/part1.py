@@ -98,9 +98,29 @@ class Pkt:
 ## when run by the autograder, and you may LOSE POINTS!
 ## ****************************************************************************
 
+def append_ints(num1: int, num2: int):
+    return (num1 << 8) | num2
+
 def calc_checksum(pkt:Pkt):
-    # TODO: Write a function that calculates a checksum given a packet.
-    pass
+    # TODONE: Write a function that calculates a checksum given a packet.
+    
+    sum = 0
+    # handle seqnum and acknum
+    sum += append_ints(pkt.seqnum, pkt.acknum)
+    if sum & 0xFFFF0000:
+        sum &= 0xFFFF
+        sum += 1
+
+    # handle payload
+    count = len(pkt.payload)/2
+    index = 0
+    while index < count:
+        sum += pkt.payload[index]
+        index += 1
+        if sum & 0xFFFF0000:
+            sum &= 0xFFFF
+            sum += 1
+    return ~(sum & 0xFFFF)
 
 # SndTransport: a sender transport layer (layer 4)
 class SndTransport:
@@ -112,6 +132,7 @@ class SndTransport:
     # zero and seqnum_limit-1, inclusive.  E.g., if seqnum_limit is 16, then
     # all seqnums must be in the range 0-15.
     def __init__(self, seqnum_limit):
+        self.seqnum_limit = seqnum_limit
         # TODO: initalize the sender's states
         pass
         
