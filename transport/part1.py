@@ -103,7 +103,7 @@ def append_ints(num1: int, num2: int):
 
 def calc_checksum(pkt:Pkt):
     # TODONE: Write a function that calculates a checksum given a packet.
-    
+
     sum = 0
     # handle seqnum and acknum
     sum += append_ints(pkt.seqnum, pkt.acknum)
@@ -132,18 +132,37 @@ class SndTransport:
     # zero and seqnum_limit-1, inclusive.  E.g., if seqnum_limit is 16, then
     # all seqnums must be in the range 0-15.
     def __init__(self, seqnum_limit):
+        # TODONE: initalize the sender's states
         self.seqnum_limit = seqnum_limit
-        # TODO: initalize the sender's states
-        pass
+        self.seq_num = 0
+        self.ack_num = 0
+    
+    def inc_seq(self):
+        if self.seq_num == self.seqnum_limit:
+            self.seq_num = 0
+        else:
+            self.seq_num += 1
+    
+    def inc_ack(self):
+        if self.ack_num == self.seqnum_limit:
+            self.ack_num = 0
+        else:
+            self.ack_num += 1
         
     # Called from layer 5, passed the data to be sent to other side.
     # The argument `message` is a Msg containing the data to be sent.
+    
     def send(self, message):
         # TODO: Create a packet from the message and pass it to layer 3. 
         # This method also has to check # of in-flight packets and 
         # start a timer after sending the packet.
         # Refer to the assignment webpage for the core logic.
-        pass
+        pkt = new Pkt(self.seq_num, self.ack_num, 0, message.data)
+        pkt.checksum = calc_checksum(pkt)
+        inc_seq()
+        inc_ack()
+        to_layer3(self, pkt)
+        start_timer(self, 10)
 
     # Called from layer 3, when a packet arrives for layer 4 at SndTransport.
     # The argument `packet` is a Pkt containing the newly arrived packet.
