@@ -136,6 +136,7 @@ class SndTransport:
         self.seqnum_limit = seqnum_limit
         self.seq_num = 0
         self.ack_num = 0
+        self.unackPkt[1] = []
     
     def inc_seq(self):
         if self.seq_num == self.seqnum_limit:
@@ -157,12 +158,16 @@ class SndTransport:
         # This method also has to check # of in-flight packets and 
         # start a timer after sending the packet.
         # Refer to the assignment webpage for the core logic.
-        pkt = new Pkt(self.seq_num, self.ack_num, 0, message.data)
-        pkt.checksum = calc_checksum(pkt)
-        inc_seq()
-        inc_ack()
-        to_layer3(self, pkt)
-        start_timer(self, 10)
+        if self.ack_num == self.seq_num:
+            pkt = Pkt(self.seq_num, self.ack_num, 0, message.data)
+            pkt.checksum = calc_checksum(pkt)
+            self.inc_seq()
+            self.unackPkt.append(pkt)
+            to_layer3(self, pkt)
+            start_timer(self, 10)
+        else:
+            #unacknowledged packet if they don't line up
+            print("error: unacknowledged packet")
 
     # Called from layer 3, when a packet arrives for layer 4 at SndTransport.
     # The argument `packet` is a Pkt containing the newly arrived packet.
@@ -170,13 +175,22 @@ class SndTransport:
         # TODO: Check the packet if it is corrupted or unexpected
         # and pass/discard the packet to layer 5 based on them.
         # Refer to the assignment webpage for the core logic.
-        pass
+        self.inc_ack()
+        if self.ack_num == self.seq_num and pkt.checksum == calc_checksum(pkt):
+            stop_timer(self)
+            self.unackPkt.pop(0)
+        else:
+            pass
+            
             
     # Called when the sender's timer goes off.
     def timer_interrupt(self):
         # TODO: handle retransmission when the timer expires
         # Refer to the assignment webpage for the core logic.
-        pass
+        stop_timer(self)
+        if len(self.unackPkt) > 0:
+            to_layer3(self, self.unackPkt[0])
+            start_timer(self, 10)
 
 # RcvTransport: a receiver transport layer (layer 4)
 class RcvTransport:
@@ -186,7 +200,22 @@ class RcvTransport:
     # See comment above `SndTransport.__init__` for the meaning of seqnum_limit.
     def __init__(self, seqnum_limit):
         # TODO: initalize the receiver's states
-        pass
+        self.seqnum_limit = seqnum_limit
+        self.seq_num = 0
+        self.ack_num = 0
+
+    def inc_seq(self):
+        if self.seq_num == self.seqnum_limit:
+            self.seq_num = 0
+        else:
+            self.seq_num += 1
+    
+    def inc_ack(self):
+        if self.ack_num == self.seqnum_limit:
+            self.ack_num = 0
+        else:
+            self.ack_num += 1
+        
 
     # Called from layer 3, when a packet arrives for layer 4 at RcvTransport.
     # The argument `packet` is a Pkt containing the newly arrived packet.
@@ -195,8 +224,16 @@ class RcvTransport:
         # and pass/discard the packet to layer 5 based on them.
         # Plus, send an ACK message based on the validity of the packet.
         # Refer to the assignment webpage for the core logic.
-        pass
-
+        if packet.checksum == calc_checksum(packet): 
+            to_layer5(self, packet)
+            ack = Pkt(self.seq_num, self.ack_num, 0, packet.payload)
+            ack.checksum = calc_checksum(ack)
+            to_layer3(self, ack)
+        else:
+            nack = Pkt(self.seq_num, self.seq_num, 0, packet.payload)
+            nack.checksum = calc_checksum(nack)
+            to_layer3(self, nack)
+        
     # Ignore this method!
     def timer_interrupt(self):
         pass
