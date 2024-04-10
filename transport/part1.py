@@ -158,12 +158,15 @@ class SndTransport:
         # This method also has to check # of in-flight packets and 
         # start a timer after sending the packet.
         # Refer to the assignment webpage for the core logic.
-        print("send ack: ", self.ack_num)
-        print("send seq: ", self.seq_num)
+        print("[snd] STARTING A SEND")
+        print("[snd] before send ack_num: ", self.ack_num)
+        print("[snd] before send seq_num: ", self.seq_num)
         if self.ack_num == self.seq_num:
             pkt = Pkt(self.seq_num, self.ack_num, 0, message.data)
             pkt.checksum = calc_checksum(pkt)
             self.inc_seq()
+            print("[snd] after send ack_num: ", self.ack_num)
+            print("[snd] after send seq_num: ", self.seq_num)
             self.unackPkt.append(pkt)
             to_layer3(self, pkt)
             start_timer(self, 10)
@@ -177,23 +180,31 @@ class SndTransport:
         # TODO: Check the packet if it is corrupted or unexpected
         # and pass/discard the packet to layer 5 based on them.
         # Refer to the assignment webpage for the core logic.
-        self.ack_num = self.seq_num
-        print("send recv after ack: ", self.ack_num)
-        print("send recv after seq: ", self.seq_num)
+
+        # self.ack_num = self.seq_num
+        print("[snd] in receive")
+        self.inc_ack()
+        
+        print("[snd] in recv ack_num: ", self.ack_num)
+        print("[snd] in recv seq_num: ", self.seq_num)
         if pkt.acknum == pkt.seqnum and pkt.checksum == calc_checksum(pkt):
+            print("[snd] valid packet received")
             stop_timer(self)
             if len(self.unackPkt) > 0:
+                print("[snd] popping from unackowledged queue")
                 self.unackPkt.pop(0)
         else:
+            print("[snd] NOT valid packet received")
             pass
             
             
     # Called when the sender's timer goes off.
     def timer_interrupt(self):
+        print("[snd] in timer_interrupt")
         # TODO: handle retransmission when the timer expires
         # Refer to the assignment webpage for the core logic.
-        #stop_timer(self)
         if len(self.unackPkt) > 0:
+            print("[snd] retransmitting")
             to_layer3(self, self.unackPkt[0])
         start_timer(self, 10)
 
@@ -229,16 +240,20 @@ class RcvTransport:
         # and pass/discard the packet to layer 5 based on them.
         # Plus, send an ACK message based on the validity of the packet.
         # Refer to the assignment webpage for the core logic.
-        print("in rec recv")
+        print("[rcv] in receive")
         if packet.checksum == calc_checksum(packet): 
-            print("in rec recv and sending ack")
+            print("[rcv] checksum matches and sending ack")
+            print("[rcv] sending ack ack_num: ", self.ack_num)
+            print("[rcv] sending ack seq_num: ", self.seq_num)
+            print("[rcv] packet received ack_num: ", packet.acknum)
+            print("[rcv] packet received seq_num: ", packet.seqnum)
             to_layer5(self, Msg(packet.payload))
-            ack = Pkt(self.seq_num, self.ack_num, 0, packet.payload)
+            ack = Pkt(packet.seqnum, packet.acknum, 0, packet.payload)
             ack.checksum = calc_checksum(ack)
             to_layer3(self, ack)
         else:
-            print("in rec recv and sending Nack")
-            nack = Pkt(self.seq_num, self.seq_num, 0, packet.payload)
+            print("[rcv] checksum doesnt match and sending Nack")
+            nack = Pkt(packet.seq_num, packet.seq_num, 0, packet.payload)
             nack.checksum = calc_checksum(nack)
             to_layer3(self, nack)
         
