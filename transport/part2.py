@@ -130,25 +130,24 @@ class SndTransport:
     # may use."  The seqnums and acknums in all layer3 Pkts must be between
     # zero and seqnum_limit-1, inclusive.  E.g., if seqnum_limit is 16, then
     # all seqnums must be in the range 0-15.
-    def __init__(self, seqnum_limit, timeout_val=20):
+    def __init__(self, seqnum_limit, timeout_val=20, window_size=8):
         # TODONE: initalize the sender's states
+        self.window_size = window_size
         self.seqnum_limit = seqnum_limit
-        self.seq_num = 0
-        self.ack_num = 0
+        # self.seq_num = 0
+        self.last_ack_rec = 0
+        self.next_frame_index = 0
         self.unackPkt = []
         self.timeout_val = timeout_val
     
-    def inc_seq(self):
-        if self.seq_num == self.seqnum_limit - 1:
-            self.seq_num = 0
+    def inc_nfi(self):
+        if self.next_frame_index - 1 < self.seqnum_limit - 1:
+            self.next_frame_index += 1
         else:
-            self.seq_num = 1
-    
-    def inc_ack(self):
-        if self.ack_num == self.seqnum_limit - 1:
-            self.ack_num = 0
-        else:
-            self.ack_num = 1
+            self.next_frame_index = 0
+
+    def check_send(self):
+        return self.next_frame_index - 1 - self.last_ack_rec <= self.window_size
         
     # Called from layer 5, passed the data to be sent to other side.
     # The argument `message` is a Msg containing the data to be sent.
@@ -160,15 +159,16 @@ class SndTransport:
         # print("[snd] before send ack_num: ", self.ack_num)
         # print("[snd] before send seq_num: ", self.seq_num)
         # if everything aknowledged so far, send packet. if not, drop
-        if self.ack_num == self.seq_num:
-            pkt = Pkt(self.seq_num, self.ack_num, 0, message.data)
+        if self.check_send():
+            pkt = Pkt(self.next_frame_index, self.next_frame_index, 0, message.data)
             pkt.checksum = calc_checksum(pkt)
-            self.inc_seq()
+            self.inc_nfi()
             print("[snd] after send ack_num: ", self.ack_num)
             print("[snd] after send seq_num: ", self.seq_num)
             self.unackPkt.append(pkt)
             to_layer3(self, pkt)
-            start_timer(self, self.timeout_val)
+            if self.next_frame_index == 1:
+                start_timer(self, self.timeout_val)
         else:
             print("error: unacknowledged packet")
 
