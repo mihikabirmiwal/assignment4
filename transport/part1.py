@@ -136,19 +136,19 @@ class SndTransport:
         self.seqnum_limit = seqnum_limit
         self.seq_num = 0
         self.ack_num = 0
-        self.unackPkt[1] = []
+        self.unackPkt = []
     
     def inc_seq(self):
-        if self.seq_num == self.seqnum_limit:
+        if self.seq_num == self.seqnum_limit - 1:
             self.seq_num = 0
         else:
-            self.seq_num += 1
+            self.seq_num = 1
     
     def inc_ack(self):
-        if self.ack_num == self.seqnum_limit:
+        if self.ack_num == self.seqnum_limit - 1:
             self.ack_num = 0
         else:
-            self.ack_num += 1
+            self.ack_num = 1
         
     # Called from layer 5, passed the data to be sent to other side.
     # The argument `message` is a Msg containing the data to be sent.
@@ -158,6 +158,8 @@ class SndTransport:
         # This method also has to check # of in-flight packets and 
         # start a timer after sending the packet.
         # Refer to the assignment webpage for the core logic.
+        print("send ack: ", self.ack_num)
+        print("send seq: ", self.seq_num)
         if self.ack_num == self.seq_num:
             pkt = Pkt(self.seq_num, self.ack_num, 0, message.data)
             pkt.checksum = calc_checksum(pkt)
@@ -175,10 +177,13 @@ class SndTransport:
         # TODO: Check the packet if it is corrupted or unexpected
         # and pass/discard the packet to layer 5 based on them.
         # Refer to the assignment webpage for the core logic.
-        self.inc_ack()
-        if self.ack_num == self.seq_num and pkt.checksum == calc_checksum(pkt):
+        self.ack_num = self.seq_num
+        print("send recv after ack: ", self.ack_num)
+        print("send recv after seq: ", self.seq_num)
+        if pkt.acknum == pkt.seqnum and pkt.checksum == calc_checksum(pkt):
             stop_timer(self)
-            self.unackPkt.pop(0)
+            if len(self.unackPkt) > 0:
+                self.unackPkt.pop(0)
         else:
             pass
             
@@ -187,10 +192,10 @@ class SndTransport:
     def timer_interrupt(self):
         # TODO: handle retransmission when the timer expires
         # Refer to the assignment webpage for the core logic.
-        stop_timer(self)
+        #stop_timer(self)
         if len(self.unackPkt) > 0:
             to_layer3(self, self.unackPkt[0])
-            start_timer(self, 10)
+        start_timer(self, 10)
 
 # RcvTransport: a receiver transport layer (layer 4)
 class RcvTransport:
@@ -205,16 +210,16 @@ class RcvTransport:
         self.ack_num = 0
 
     def inc_seq(self):
-        if self.seq_num == self.seqnum_limit:
+        if self.seq_num == self.seqnum_limit - 1:
             self.seq_num = 0
         else:
-            self.seq_num += 1
+            self.seq_num = 1
     
     def inc_ack(self):
-        if self.ack_num == self.seqnum_limit:
+        if self.ack_num == self.seqnum_limit - 1:
             self.ack_num = 0
         else:
-            self.ack_num += 1
+            self.ack_num = 1
         
 
     # Called from layer 3, when a packet arrives for layer 4 at RcvTransport.
@@ -224,12 +229,15 @@ class RcvTransport:
         # and pass/discard the packet to layer 5 based on them.
         # Plus, send an ACK message based on the validity of the packet.
         # Refer to the assignment webpage for the core logic.
+        print("in rec recv")
         if packet.checksum == calc_checksum(packet): 
-            to_layer5(self, packet)
+            print("in rec recv and sending ack")
+            to_layer5(self, Msg(packet.payload))
             ack = Pkt(self.seq_num, self.ack_num, 0, packet.payload)
             ack.checksum = calc_checksum(ack)
             to_layer3(self, ack)
         else:
+            print("in rec recv and sending Nack")
             nack = Pkt(self.seq_num, self.seq_num, 0, packet.payload)
             nack.checksum = calc_checksum(nack)
             to_layer3(self, nack)
