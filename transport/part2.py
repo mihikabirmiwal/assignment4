@@ -153,15 +153,19 @@ class SndTransport:
     # Called from layer 5, passed the data to be sent to other side.
     # The argument `message` is a Msg containing the data to be sent.
     def send(self, message):
-        # TODONE: Create a packet from the message and pass it to layer 3. 
+        # TODO: Create a packet from the message and pass it to layer 3. 
         # This method also has to check # of in-flight packets and 
         # start a timer after sending the packet.
         # Refer to the assignment webpage for the core logic.
+        # print("[snd] before send ack_num: ", self.ack_num)
+        # print("[snd] before send seq_num: ", self.seq_num)
         # if everything aknowledged so far, send packet. if not, drop
         if self.ack_num == self.seq_num:
             pkt = Pkt(self.seq_num, self.ack_num, 0, message.data)
             pkt.checksum = calc_checksum(pkt)
             self.inc_seq()
+            print("[snd] after send ack_num: ", self.ack_num)
+            print("[snd] after send seq_num: ", self.seq_num)
             self.unackPkt.append(pkt)
             to_layer3(self, pkt)
             start_timer(self, self.timeout_val)
@@ -171,15 +175,24 @@ class SndTransport:
     # Called from layer 3, when a packet arrives for layer 4 at SndTransport.
     # The argument `packet` is a Pkt containing the newly arrived packet.
     def recv(self, pkt):
-        # TODONE: Check the packet if it is corrupted or unexpected
+        # TODO: Check the packet if it is corrupted or unexpected
         # and pass/discard the packet to layer 5 based on them.
         # Refer to the assignment webpage for the core logic.
+
+        print("[snd] in receive")
+        
+        print("[snd] in recv ack_num: ", self.ack_num)
+        print("[snd] in recv seq_num: ", self.seq_num)
         if pkt.acknum == pkt.seqnum and pkt.checksum == calc_checksum(pkt):
+            print("[snd] valid packet received")
             self.inc_ack()
             stop_timer(self)
+            print("[snd] popping from unackowledged queue")
             self.unackPkt.pop(0)
             to_layer5(self, Msg(pkt.payload))
         else:
+            print("[snd] NOT valid packet received")
+            print("[snd] retransmit when NACK")
             stop_timer(self)
             to_layer3(self, self.unackPkt[0])
             start_timer(self, self.timeout_val)
@@ -187,12 +200,15 @@ class SndTransport:
             
     # Called when the sender's timer goes off.
     def timer_interrupt(self):
-        # TODONE: handle retransmission when the timer expires
+        print("[snd] in timer_interrupt")
+        # TODO: handle retransmission when the timer expires
         # Refer to the assignment webpage for the core logic.
         if len(self.unackPkt) > 0:
+            print("[snd] retransmitting")
             to_layer3(self, self.unackPkt[0])
         else:
-            start_timer(self, self.timeout_val)
+            print("[snd] no in flight data, timer gone off")
+        start_timer(self, self.timeout_val)
 
 # RcvTransport: a receiver transport layer (layer 4)
 class RcvTransport:
@@ -226,7 +242,13 @@ class RcvTransport:
         # and pass/discard the packet to layer 5 based on them.
         # Plus, send an ACK message based on the validity of the packet.
         # Refer to the assignment webpage for the core logic.
+        print("[rcv] in receive")
         if packet.checksum == calc_checksum(packet): 
+            print("[rcv] checksum matches and sending ack")
+            # print("[rcv] sending ack ack_num: ", self.ack_num)
+            print("[rcv] sending ack seq_num: ", self.seq_num)
+            print("[rcv] packet received ack_num: ", packet.acknum)
+            print("[rcv] packet received seq_num: ", packet.seqnum)
             if packet.seqnum == self.seq_num:
                 to_layer5(self, Msg(packet.payload))
                 self.inc_seq()
@@ -235,6 +257,7 @@ class RcvTransport:
 
             to_layer3(self, ack)
         else:
+            print("[rcv] checksum doesnt match and sending Nack")
             fraud_ack_num = packet.seqnum - 1
             if packet.seqnum == 0:
                 fraud_ack_num = 1
