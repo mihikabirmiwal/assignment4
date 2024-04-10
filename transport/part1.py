@@ -101,9 +101,8 @@ class Pkt:
 def append_ints(num1: int, num2: int):
     return (num1 << 8) | num2
 
+# TODONE: Write a function that calculates a checksum given a packet.
 def calc_checksum(pkt:Pkt):
-    # TODONE: Write a function that calculates a checksum given a packet.
-
     sum = 0
     # handle seqnum and acknum
     sum += append_ints(pkt.seqnum, pkt.acknum)
@@ -131,12 +130,13 @@ class SndTransport:
     # may use."  The seqnums and acknums in all layer3 Pkts must be between
     # zero and seqnum_limit-1, inclusive.  E.g., if seqnum_limit is 16, then
     # all seqnums must be in the range 0-15.
-    def __init__(self, seqnum_limit):
+    def __init__(self, seqnum_limit, timeout_val=20):
         # TODONE: initalize the sender's states
         self.seqnum_limit = seqnum_limit
         self.seq_num = 0
         self.ack_num = 0
         self.unackPkt = []
+        self.timeout_val = timeout_val
     
     def inc_seq(self):
         if self.seq_num == self.seqnum_limit - 1:
@@ -152,15 +152,15 @@ class SndTransport:
         
     # Called from layer 5, passed the data to be sent to other side.
     # The argument `message` is a Msg containing the data to be sent.
-    
     def send(self, message):
         # TODO: Create a packet from the message and pass it to layer 3. 
         # This method also has to check # of in-flight packets and 
         # start a timer after sending the packet.
         # Refer to the assignment webpage for the core logic.
         print("[snd] STARTING A SEND")
-        print("[snd] before send ack_num: ", self.ack_num)
-        print("[snd] before send seq_num: ", self.seq_num)
+        # print("[snd] before send ack_num: ", self.ack_num)
+        # print("[snd] before send seq_num: ", self.seq_num)
+        # if everything aknowledged so far, send packet. if not, drop
         if self.ack_num == self.seq_num:
             pkt = Pkt(self.seq_num, self.ack_num, 0, message.data)
             pkt.checksum = calc_checksum(pkt)
@@ -169,9 +169,8 @@ class SndTransport:
             print("[snd] after send seq_num: ", self.seq_num)
             self.unackPkt.append(pkt)
             to_layer3(self, pkt)
-            start_timer(self, 10)
+            start_timer(self, self.timeout_val)
         else:
-            #unacknowledged packet if they don't line up
             print("error: unacknowledged packet")
 
     # Called from layer 3, when a packet arrives for layer 4 at SndTransport.
@@ -181,21 +180,23 @@ class SndTransport:
         # and pass/discard the packet to layer 5 based on them.
         # Refer to the assignment webpage for the core logic.
 
-        # self.ack_num = self.seq_num
         print("[snd] in receive")
-        self.inc_ack()
         
         print("[snd] in recv ack_num: ", self.ack_num)
         print("[snd] in recv seq_num: ", self.seq_num)
         if pkt.acknum == pkt.seqnum and pkt.checksum == calc_checksum(pkt):
             print("[snd] valid packet received")
+            self.inc_ack()
             stop_timer(self)
-            if len(self.unackPkt) > 0:
-                print("[snd] popping from unackowledged queue")
-                self.unackPkt.pop(0)
+            print("[snd] popping from unackowledged queue")
+            self.unackPkt.pop(0)
+            to_layer5(self, Msg(pkt.payload))
         else:
             print("[snd] NOT valid packet received")
-            pass
+            print("[snd] retransmit when NACK")
+            stop_timer(self)
+            to_layer3(self, self.unackPkt[0])
+            start_timer(self, self.timeout_val)
             
             
     # Called when the sender's timer goes off.
@@ -206,7 +207,9 @@ class SndTransport:
         if len(self.unackPkt) > 0:
             print("[snd] retransmitting")
             to_layer3(self, self.unackPkt[0])
-        start_timer(self, 10)
+        else:
+            print("[snd] no in flight data, timer gone off")
+        start_timer(self, self.timeout_val)
 
 # RcvTransport: a receiver transport layer (layer 4)
 class RcvTransport:
@@ -248,12 +251,15 @@ class RcvTransport:
             print("[rcv] packet received ack_num: ", packet.acknum)
             print("[rcv] packet received seq_num: ", packet.seqnum)
             to_layer5(self, Msg(packet.payload))
-            ack = Pkt(packet.seqnum, packet.acknum, 0, packet.payload)
+            ack = Pkt(packet.seqnum, packet.seqnum, 0, packet.payload)
             ack.checksum = calc_checksum(ack)
             to_layer3(self, ack)
         else:
             print("[rcv] checksum doesnt match and sending Nack")
-            nack = Pkt(packet.seq_num, packet.seq_num, 0, packet.payload)
+            fraud_ack_num = packet.seqnum - 1
+            if packet.seqnum == 0:
+                fraud_ack_num = 1
+            nack = Pkt(packet.seqnum, fraud_ack_num, 0, packet.payload)
             nack.checksum = calc_checksum(nack)
             to_layer3(self, nack)
         
