@@ -221,7 +221,7 @@ class RcvTransport:
         # TODO: initalize the receiver's states
         self.seqnum_limit = seqnum_limit
         self.seq_num = 0
-        self.ack_num = 0
+        # self.ack_num = 0
 
     def inc_seq(self):
         if self.seq_num == self.seqnum_limit - 1:
@@ -229,11 +229,11 @@ class RcvTransport:
         else:
             self.seq_num = 1
     
-    def inc_ack(self):
-        if self.ack_num == self.seqnum_limit - 1:
-            self.ack_num = 0
-        else:
-            self.ack_num = 1
+    # def inc_ack(self):
+    #     if self.ack_num == self.seqnum_limit - 1:
+    #         self.ack_num = 0
+    #     else:
+    #         self.ack_num = 1
         
 
     # Called from layer 3, when a packet arrives for layer 4 at RcvTransport.
@@ -246,13 +246,16 @@ class RcvTransport:
         print("[rcv] in receive")
         if packet.checksum == calc_checksum(packet): 
             print("[rcv] checksum matches and sending ack")
-            print("[rcv] sending ack ack_num: ", self.ack_num)
+            # print("[rcv] sending ack ack_num: ", self.ack_num)
             print("[rcv] sending ack seq_num: ", self.seq_num)
             print("[rcv] packet received ack_num: ", packet.acknum)
             print("[rcv] packet received seq_num: ", packet.seqnum)
-            to_layer5(self, Msg(packet.payload))
+            if packet.seqnum == self.seq_num:
+                to_layer5(self, Msg(packet.payload))
+                self.inc_seq()
             ack = Pkt(packet.seqnum, packet.seqnum, 0, packet.payload)
             ack.checksum = calc_checksum(ack)
+
             to_layer3(self, ack)
         else:
             print("[rcv] checksum doesnt match and sending Nack")
