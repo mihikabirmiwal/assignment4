@@ -131,113 +131,85 @@ class SndTransport:
     # zero and seqnum_limit-1, inclusive.  E.g., if seqnum_limit is 16, then
     # all seqnums must be in the range 0-15.
     def __init__(self, seqnum_limit, timeout_val=40, window_size=8):
-        # TODONE: initalize the sender's states
         self.window_size = window_size
         self.seqnum_limit = seqnum_limit
-        # self.seq_num = 0
         self.last_ack_rec = -1
         self.next_frame_index = 0
         self.unackPkt = []
         self.timeout_val = timeout_val
     
+    # increment next frame index, wraps around seqnum_limit
     def inc_nfi(self):
         if self.next_frame_index < self.seqnum_limit - 1:
             self.next_frame_index += 1
         else:
             self.next_frame_index = 0
 
+    # return incremented last ack received, wraps around seqnum_limit
     def next_lar(self):
         if self.last_ack_rec < self.seqnum_limit - 1:
             return self.last_ack_rec + 1
         else:
             return 0
 
+    # can send more packets if there are more slots in window_size available
     def check_send(self):
-        return self.next_frame_index - 1 - self.last_ack_rec <= self.window_size
+        return len(self.unackPkt) < self.window_size
         
     # Called from layer 5, passed the data to be sent to other side.
     # The argument `message` is a Msg containing the data to be sent.
     def send(self, message):
-        # TODO: Create a packet from the message and pass it to layer 3. 
+        # TODONE: Create a packet from the message and pass it to layer 3. 
         # This method also has to check # of in-flight packets and 
         # start a timer after sending the packet.
         # Refer to the assignment webpage for the core logic.
-        print("[snd] before sending packet last ack rec:", self.last_ack_rec)
-        print("[snd] before sending packet next frame index:", self.next_frame_index)
-        # print("[snd] before send ack_num: ", self.ack_num)
-        # print("[snd] before send seq_num: ", self.seq_num)
-        # if everything aknowledged so far, send packet. if not, drop
+
+        # if space to send more in window, send packet. if not, drop
         if self.check_send():
             pkt = Pkt(self.next_frame_index, self.next_frame_index, 0, message.data)
             pkt.checksum = calc_checksum(pkt)
             self.inc_nfi()
-            # print("[snd] after send ack_num: ", self.ack_num)
-            # print("[snd] after send seq_num: ", self.seq_num)
             self.unackPkt.append(pkt)
             to_layer3(self, pkt)
-            # if self.next_frame_index == 1:
             start_timer(self, self.timeout_val)
         else:
-            print("error: unacknowledged packet")
+            print("error: unacknowledged packets, max number of packets still in flight")
 
-    def check_rec(self, pkt):
-        if (pkt.acknum != pkt.seqnum):
-            print("[snd] in rec packet ack num doesn't == seq")
-        
-        if (pkt.checksum != calc_checksum(pkt)):
-            print("[snd] in rec invalid checksum")
+    # retransmit all unacked packets 
+    def retransmit(self):
+        if len(self.unackPkt) > 0:
+            for packet in self.unackPkt:
+                to_layer3(self, packet)
+            start_timer(self, self.timeout_val)
 
-        if (pkt.seqnum != self.next_lar()):
-            print("[snd] in rec seq num != next lar")
-        
-        return pkt.acknum == pkt.seqnum and pkt.checksum == calc_checksum(pkt) and pkt.seqnum == self.next_lar()
+    # checking validity of an ACK/NACK packet it is receiving
+    def check_rec(self, pkt):       
+        return pkt.acknum == pkt.seqnum and pkt.checksum == calc_checksum(pkt)
 
     # Called from layer 3, when a packet arrives for layer 4 at SndTransport.
     # The argument `packet` is a Pkt containing the newly arrived packet.
     def recv(self, pkt):
-        # TODO: Check the packet if it is corrupted or unexpected
+        # TODONE: Check the packet if it is corrupted or unexpected
         # and pass/discard the packet to layer 5 based on them.
         # Refer to the assignment webpage for the core logic.
 
-        print("[snd] in receive")
-        
-        print("[snd] in recv pkt seq: ", pkt.seqnum)
-        print("[snd] in recv next lar: ", self.next_lar())
-        # if (pkt.seqnum != pkt.acknum pkt.acknum <= self.last_ack_rec) or pkt.acknum != 0:
-        #     #not valid ack, need to retransmit
-        #     stop_timer(self)
-        #     for packet in self.unackPkt:
-        #         print("[snd] retransmitting")
-        #         to_layer3(self, packet)
-        #     start_timer(self, self.timeout_val)
+        stop_timer(self)
         if self.check_rec(pkt):
-            print("[snd] valid packet received")
-            self.last_ack_rec = self.next_lar()
-            # if self.last_ack_rec == 0:
-            stop_timer(self)
-            print("[snd] popping from unackowledged queue")
-            self.unackPkt.pop(0)
-            print("[snd] recv sending to layer5")
-            to_layer5(self, Msg(pkt.payload))
+            if pkt.seqnum == self.next_lar():
+                self.last_ack_rec = self.next_lar()
+                self.unackPkt.pop(0)
+                to_layer5(self, Msg(pkt.payload))
+            elif pkt.seqnum > self.next_lar():
+                self.retransmit()
         else:
-            print("[snd] NOT valid packet received")
-            print("[snd] retransmit when NACK")
-            stop_timer(self)
-            to_layer3(self, self.unackPkt[0])
-            start_timer(self, self.timeout_val)
+            self.retransmit()
             
-            
+
     # Called when the sender's timer goes off.
     def timer_interrupt(self):
-        print("[snd] in timer_interrupt")
-        # TODO: handle retransmission when the timer expires
-        # Refer to the assignment webpage for the core logic.
-        for packet in self.unackPkt:
-            print("[snd] retransmitting")
-            to_layer3(self, packet)
-        else:
-            print("[snd] no in flight data, timer gone off")
-        start_timer(self, self.timeout_val)
+        # TODONE: handle retransmission when the timer expires
+        self.retransmit()
+
 
 # RcvTransport: a receiver transport layer (layer 4)
 class RcvTransport:
@@ -246,15 +218,11 @@ class RcvTransport:
     #
     # See comment above `SndTransport.__init__` for the meaning of seqnum_limit.
     def __init__(self, seqnum_limit):
-        # TODO: initalize the receiver's states
+        # TODONE: initalize the receiver's states
         self.seqnum_limit = seqnum_limit
-        # self.window_size = window_size
-        # self.seq_num_to_ack = 0
         self.last_frame_rec = -1
-        # self.last_acc_index = 0
-        # self.unackPkt = []
 
-    #returns the next frame we want to except
+    # returns the next frame we expect, wrap around seqnum_limit
     def next_frame_rec(self):
         if self.last_frame_rec < self.seqnum_limit - 1:
             return self.last_frame_rec + 1
@@ -262,40 +230,24 @@ class RcvTransport:
             return 0
     
     def check_rec(self, packet):
-        print("[rec] check rec seq num", packet.seqnum)
-        print("[rec] check rec next frame expectd", self.next_frame_rec())
-        return packet.seqnum <= self.next_frame_rec() and calc_checksum(packet) == packet.checksum
+        return calc_checksum(packet) == packet.checksum
         
 
     # Called from layer 3, when a packet arrives for layer 4 at RcvTransport.
     # The argument `packet` is a Pkt containing the newly arrived packet.
     def recv(self, packet):
-        # TODO: Check the packet if it is corrupted or unexpected
+        # TODONE: Check the packet if it is corrupted or unexpected
         # and pass/discard the packet to layer 5 based on them.
         # Plus, send an ACK message based on the validity of the packet.
         # Refer to the assignment webpage for the core logic.
-        print("[rcv] in receive")
-        # if packet.seqnum <= self.last_frame_rec:
-        #     print("[rec] duplicate frame")
-        #     pass
         if self.check_rec(packet): 
-            print("[rcv] checksum matches and sending ack")
-            # print("[rcv] sending ack ack_num: ", self.ack_num)
-            # print("[rcv] sending ack seq_num: ", self.seq_num)
-            # print("[rcv] packet received ack_num: ", packet.acknum)
-            # print("[rcv] packet received seq_num: ", packet.seqnum)
             if packet.seqnum == self.next_frame_rec():
-                print("[rec] recv sending to layer5")
                 to_layer5(self, Msg(packet.payload))
                 self.last_frame_rec = self.next_frame_rec()
-          
-            #if an ack should be sent
             ack = Pkt(packet.seqnum, packet.seqnum, 0, packet.payload)
             ack.checksum = calc_checksum(ack)
-
             to_layer3(self, ack)
         else:
-            print("[rcv] checksum doesnt match and sending Nack")
             fraud_ack_num = packet.seqnum - 1
             if packet.seqnum == 0:
                 fraud_ack_num = 1
