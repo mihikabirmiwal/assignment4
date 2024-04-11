@@ -131,27 +131,30 @@ class SndTransport:
     # zero and seqnum_limit-1, inclusive.  E.g., if seqnum_limit is 16, then
     # all seqnums must be in the range 0-15.
     def __init__(self, seqnum_limit, timeout_val=40, window_size=8):
-        # TODONE: initalize the sender's states
         self.window_size = window_size
         self.seqnum_limit = seqnum_limit
-        self.last_ack_rec = -1
+        self.last_ack_rec = -1 # TOCHECK: will have to change these values from being bounded by [0, seqnum_limit] to unbounded and then taking the mod. math will be all diff
         self.next_frame_index = 0
         self.unackPkt = []
         self.timeout_val = timeout_val
     
+    # increment next frame index, wraps around seqnum_limit
     def inc_nfi(self):
         if self.next_frame_index < self.seqnum_limit - 1:
             self.next_frame_index += 1
         else:
             self.next_frame_index = 0
 
+    # return incremented last ack received, wraps around seqnum_limit
     def next_lar(self):
         if self.last_ack_rec < self.seqnum_limit - 1:
             return self.last_ack_rec + 1
         else:
             return 0
 
+    # can send more packets if there are more slots in window_size available
     def check_send(self):
+        # TOCHECK: probably not right
         return self.next_frame_index - 1 - self.last_ack_rec <= self.window_size
         
     # Called from layer 5, passed the data to be sent to other side.
@@ -165,7 +168,7 @@ class SndTransport:
         print("[snd] before sending packet next frame index:", self.next_frame_index)
         # print("[snd] before send ack_num: ", self.ack_num)
         # print("[snd] before send seq_num: ", self.seq_num)
-        # if everything aknowledged so far, send packet. if not, drop
+        # if space to send more in window, send packet. if not, drop
         if self.check_send():
             pkt = Pkt(self.next_frame_index, self.next_frame_index, 0, message.data)
             pkt.checksum = calc_checksum(pkt)
@@ -174,25 +177,20 @@ class SndTransport:
             # print("[snd] after send seq_num: ", self.seq_num)
             self.unackPkt.append(pkt)
             to_layer3(self, pkt)
-            # if self.next_frame_index == 1:
             start_timer(self, self.timeout_val)
         else:
-            print("error: unacknowledged packet")
+            print("error: unacknowledged packets, max number of packets still in flight")
 
+    # checking validity of an ACK/NACK packet it is receiving
     def check_rec(self, pkt):
         if (pkt.acknum != pkt.seqnum):
-            print("[snd] in rec packet ack num doesn't == seq")
+            print("[snd] in rec packet ack num doesn't == seq. it is a NACK packet")
         
         if (pkt.checksum != calc_checksum(pkt)):
             print("[snd] in rec invalid checksum")
 
-        # if (pkt.seqnum + self.window_size)%self.seqnum_limit > self.next_lar():
-        #     print("[snd] in rec seq num != next lar")
-        #     print("[snd] pkt.seqnum: ", pkt.seqnum)
-        #     print("[snd] self.next_lar(): ", self.next_lar())
-
         if (pkt.seqnum != self.next_lar()):
-            print("[snd] in rec seq num != next lar")
+            print("[snd] in rec seq num != next lar, we will discard this packet")
         
         return pkt.acknum == pkt.seqnum and pkt.checksum == calc_checksum(pkt)
 
@@ -219,6 +217,7 @@ class SndTransport:
             print("[snd] NOT valid packet received")
             print("[snd] retransmit when NACK")
             print("[snd] seqnum of unackpacket[0]: ", self.unackPkt[0].seqnum)
+            # TOCHECK: do we only retransmit 1 packet?
             to_layer3(self, self.unackPkt[0])
             start_timer(self, self.timeout_val)
             
@@ -246,7 +245,7 @@ class RcvTransport:
         self.seqnum_limit = seqnum_limit
         self.last_frame_rec = -1
 
-    #returns the next frame we want to except
+    # returns the next frame we expect
     def next_frame_rec(self):
         if self.last_frame_rec < self.seqnum_limit - 1:
             return self.last_frame_rec + 1
