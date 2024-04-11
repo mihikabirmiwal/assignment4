@@ -190,7 +190,14 @@ class SndTransport:
     #     #otherwise seq just needs to be greater than the lar, within window size
     #     return seq > lar and seq < self.window_size + lar
             
-    
+    def retransmit(self):
+        if len(self.unackPkt) > 0:
+            for packet in self.unackPkt:
+                print("[snd] recv retransmitting")
+                to_layer3(self, packet)
+            start_timer(self, self.timeout_val)
+        else:
+            print("[snd] no in flight data in recv")
 
     # checking validity of an ACK/NACK packet it is receiving
     def check_rec(self, pkt):
@@ -225,6 +232,9 @@ class SndTransport:
                 print("[snd] length of queue after pop: ", len(self.unackPkt))
                 print("[snd] recv sending to layer5, seqnum: ", pkt.seqnum)
                 to_layer5(self, Msg(pkt.payload))
+            elif pkt.seqnum > self.next_lar():
+                print("[snd] recveing future ack")
+                self.retransmit()
         else:
             print("[snd] NOT valid packet received")
             print("[snd] retransmit when NACK")
@@ -232,13 +242,7 @@ class SndTransport:
             # TOCHECK: do we only retransmit 1 packet?
             # to_layer3(self, self.unackPkt[0])
             # start_timer(self, self.timeout_val)
-            if len(self.unackPkt) > 0:
-                for packet in self.unackPkt:
-                    print("[snd] recv retransmitting")
-                    to_layer3(self, packet)
-                start_timer(self, self.timeout_val)
-            else:
-                print("[snd] no in flight data in recv")
+            self.retransmit()
             
             
     # Called when the sender's timer goes off.
@@ -246,13 +250,14 @@ class SndTransport:
         print("[snd] in timer_interrupt")
         # TODO: handle retransmission when the timer expires
         # Refer to the assignment webpage for the core logic.
-        if len(self.unackPkt) > 0:
-            for packet in self.unackPkt:
-                print("[snd] retransmitting packet seq num: ", packet.seqnum)
-                to_layer3(self, packet)
-        else:
-            print("[snd] no in flight data, timer gone off")
-        start_timer(self, self.timeout_val)
+        self.retransmit()
+        # if len(self.unackPkt) > 0:
+        #     for packet in self.unackPkt:
+        #         print("[snd] retransmitting packet seq num: ", packet.seqnum)
+        #         to_layer3(self, packet)
+        # else:
+        #     print("[snd] no in flight data, timer gone off")
+        # start_timer(self, self.timeout_val)
 
 # RcvTransport: a receiver transport layer (layer 4)
 class RcvTransport:
