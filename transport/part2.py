@@ -155,7 +155,7 @@ class SndTransport:
     # can send more packets if there are more slots in window_size available
     def check_send(self):
         # TOCHECK: probably not right
-        return self.next_frame_index - 1 - self.last_ack_rec <= self.window_size
+        return len(self.unackPkt) < self.window_size
         
     # Called from layer 5, passed the data to be sent to other side.
     # The argument `message` is a Msg containing the data to be sent.
@@ -181,6 +181,16 @@ class SndTransport:
         else:
             print("error: unacknowledged packets, max number of packets still in flight")
 
+    # def range(self, seq, lar):
+    #     if self.seqnum_limit - val < self.window_size:
+    #         #current val (lar) is at the higher wrap edge of sequence limit
+    #         wrap_cap = self.window_size - (self.seqnum_limit - lar)
+    #         return (seq > lar and seq < self.seqnum_limit) or (seq >= 0 and seq < wrap_cap)
+    #     #otherwise seq just needs to be greater than the lar, within window size
+    #     return seq > lar and seq < self.window_size + lar
+            
+    
+
     # checking validity of an ACK/NACK packet it is receiving
     def check_rec(self, pkt):
         if (pkt.acknum != pkt.seqnum):
@@ -189,8 +199,8 @@ class SndTransport:
         if (pkt.checksum != calc_checksum(pkt)):
             print("[snd] in rec invalid checksum")
 
-        if (pkt.seqnum != self.next_lar()):
-            print("[snd] in rec seq num != next lar, we will discard this packet")
+        # if (range(pkt.seqnum, self.last_ack_rec)):
+        #     print("[snd] in rec seq num not in window of lar, we will discard this packet")
         
         return pkt.acknum == pkt.seqnum and pkt.checksum == calc_checksum(pkt)
 
@@ -211,15 +221,22 @@ class SndTransport:
                 self.last_ack_rec = self.next_lar()
                 print("[snd] popping from unackowledged queue")
                 self.unackPkt.pop(0)
-                print("[snd] recv sending to layer5")
+                print("[snd] recv sending to layer5, seqnum", pkt.seqnum)
                 to_layer5(self, Msg(pkt.payload))
         else:
             print("[snd] NOT valid packet received")
             print("[snd] retransmit when NACK")
-            print("[snd] seqnum of unackpacket[0]: ", self.unackPkt[0].seqnum)
+            # print("[snd] seqnum of unackpacket[0]: ", self.unackPkt[0].seqnum)
             # TOCHECK: do we only retransmit 1 packet?
-            to_layer3(self, self.unackPkt[0])
-            start_timer(self, self.timeout_val)
+            # to_layer3(self, self.unackPkt[0])
+            # start_timer(self, self.timeout_val)
+            if len(self.unackPkt) > 0:
+                for packet in self.unackPkt:
+                    print("[snd] recv retransmitting")
+                    to_layer3(self, packet)
+                start_timer(self, self.timeout_val)
+            else:
+                print("[snd] no in flight data in recv")
             
             
     # Called when the sender's timer goes off.
@@ -227,9 +244,10 @@ class SndTransport:
         print("[snd] in timer_interrupt")
         # TODO: handle retransmission when the timer expires
         # Refer to the assignment webpage for the core logic.
-        for packet in self.unackPkt:
-            print("[snd] retransmitting")
-            to_layer3(self, packet)
+        if len(self.unackPkt) > 0:
+            for packet in self.unackPkt:
+                print("[snd] retransmitting")
+                to_layer3(self, packet)
         else:
             print("[snd] no in flight data, timer gone off")
         start_timer(self, self.timeout_val)
@@ -267,7 +285,7 @@ class RcvTransport:
         # Refer to the assignment webpage for the core logic.
         print("[rcv] in receive")
         if self.check_rec(packet): 
-            print("[rcv] checksum matches and sending ack")
+            
             # print("[rcv] sending ack ack_num: ", self.ack_num)
             # print("[rcv] sending ack seq_num: ", self.seq_num)
             # print("[rcv] packet received ack_num: ", packet.acknum)
@@ -278,6 +296,7 @@ class RcvTransport:
                 self.last_frame_rec = self.next_frame_rec()
           
             #if an ack should be sent
+            print("[rcv] checksum matches and sending ack")
             ack = Pkt(packet.seqnum, packet.seqnum, 0, packet.payload)
             ack.checksum = calc_checksum(ack)
 
